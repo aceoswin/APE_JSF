@@ -15,22 +15,34 @@ APE.Chat = new Class({
 
 		this.els = {};
 		this.currentPipe = null;
+		this.usepipe = null;
 		this.logging = true;
 
 		this.onRaw('data', this.rawData);
+		this.addEvent('ready', function() {
+            if (this.core.options.restore) {
+                //If it's a session restoration, ask the APE server for the custom session 'key1'
+                this.core.getSession('currentPipe', function(resp) {
+                    //console.log('Receiving sessions data. currentPipe value is : ', resp.data.sessions.currentPipe);
+                });
+            } else {
+                //Saving custom session key1 one the server
+                //console.log('你好');
+            }
+        });
 		this.onCmd('send', this.cmdSend);
 		this.onError('004', this.reset);
 
 		this.onError('006', this.promptName);
 		this.onError('007', this.promptName);
 
-		this.addEvent('load', this.start);
-		this.addEvent('ready', this.createChat);
-		this.addEvent('uniPipeCreate', this.setPipeName);
-		this.addEvent('uniPipeCreate', this.createPipe);
-		this.addEvent('multiPipeCreate', this.createPipe);
-		this.addEvent('userJoin', this.createUser);
-		this.addEvent('userLeft', this.deleteUser);
+		this.addEvent('load', this.start);					//1.
+		this.addEvent('ready', this.createChat);			//2.
+		this.addEvent('uniPipeCreate', this.setPipeName);	//
+		this.addEvent('uniPipeCreate', this.createuniPipe);	//
+		this.addEvent('multiPipeCreate', this.createmultiPipe);	//
+		this.addEvent('userJoin', this.createUser);			//
+		this.addEvent('userLeft', this.deleteUser);			//
 	},
 
 	promptName: function(errorRaw){
@@ -155,15 +167,18 @@ APE.Chat = new Class({
 	},
 
 	createUser: function(user, pipe){
+	    this.usepipe=pipe;
 		user.el = new Element('div',{
 				'class':'ape_user'
 			}).inject(pipe.els.users);
 		new Element('a',{
+			    'id':user.pubid,
 				'text':user.properties.name,
 				'href':'javascript:void(0)',
 				'events': {
 				'click':
 					function(ev,user){
+						    //console.log(user);
 							this.core.getPipe(user.pubid)
 							this.setCurrentPipe(user.pubid);
 						}.bindWithEvent(this,[user])
@@ -175,13 +190,13 @@ APE.Chat = new Class({
 		user.el.dispose();
 	},
 
-	createPipe: function(pipe, options){
+	createmultiPipe: function(pipe, options){
 		var tmp;
-
+        //console.log('multi');
 		//Define some pipe variables to handle logging and pipe elements
 		pipe.els = {};
 		pipe.logs = new Array();
-
+        //console.log(pipe);
 		//Container
 		pipe.els.container = new Element('div',{
 							'class':'ape_pipe ape_none'
@@ -204,25 +219,75 @@ APE.Chat = new Class({
 		pipe.els.tab = new Element('div',{
 			'class':'ape_tab unactive'
 		}).inject(this.els.tabs);
-
+        if(options.pipe.casttype=='multi'){
 		tmp = new Element('a',{
+			    'id'  :pipe.pubid,
 				'text':pipe.name,
 				'href':'javascript:void(0)',
 				'events':{
-					'click':function(pipe){
+					'click':function(){
+						    //alert('你好这里多方通话');
 							this.setCurrentPipe(pipe.getPubid())
 						}.bind(this,[pipe])
 					}
 				}).inject(pipe.els.tab);
-
+        }
 		//Hide other pipe and show this one
 		this.setCurrentPipe(pipe.getPubid());
 	},
 
+		createuniPipe: function(pipe, options){
+		this.usepipe=pipe.getPubid();
+		var tmp;
+        //console.log('uni');
+		//Define some pipe variables to handle logging and pipe elements
+		pipe.els = {};
+		pipe.logs = new Array();
+        //console.log(pipe);
+		//Container
+		pipe.els.container = new Element('div',{
+							'class':'ape_pipe ape_none'
+						}).inject(this.els.pipeContainer);
+
+		//Message container
+		pipe.els.message = new Element('div',{'class':'ape_messages'}).inject(pipe.els.container,'inside');
+
+		//If pipe has a users list 
+		if(pipe.users){
+			pipe.els.usersRight = new Element('div',{
+				'class':'users_right'
+			}).inject(pipe.els.container);
+
+			pipe.els.users = new Element('div',{
+			                                 'class':'ape_users_list'
+		                                 }).inject(pipe.els.usersRight);;
+		}
+		//Add tab
+		pipe.els.tab = new Element('div',{
+			'class':'ape_tab unactive'
+		}).inject(this.els.tabs);
+        if(options.pipe.casttype=='uni'){
+			tmp = new Element('a',{
+			    'id'  :pipe.pubid,
+				'text':pipe.name,
+				'href':'javascript:void(0)',
+				'events':{
+					'click':function(e){
+						    console.log(e[0]);
+							this.usepipe=e[0].getPubid();
+							//alert('这里是'+pipe.name+'的pipe');
+							this.setCurrentPipe(this.usepipe);
+						}.bind(this,[pipe])
+					}
+				}).inject(pipe.els.tab);
+		}
+		//Hide other pipe and show this one
+		this.setCurrentPipe(pipe.getPubid());
+	},
 	createChat: function(){
 		this.els.pipeContainer = new Element('div',{'id':'ape_container'});
 		this.els.pipeContainer.inject(this.options.container);
-
+        //console.log(this.options.container);
 		this.els.more = new Element('div',{'id':'more'}).inject(this.options.container,'after');
 		this.els.tabs = new Element('div',{'id':'tabbox_container'}).inject(this.els.more);
 		this.els.sendboxContainer = new Element('div',{'id':'ape_sendbox_container'}).inject(this.els.more);
